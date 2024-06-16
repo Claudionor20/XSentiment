@@ -3,7 +3,8 @@ library(dplyr)
 library(tidytext)
 library(ggplot2)
 library(tm)
-
+library(stringi)
+library(wordcloud)
 
 # Lendo base
 load("dados_rotulados.rda")
@@ -12,45 +13,55 @@ load("dados_rotulados.rda")
 dados <- dados|>
   dplyr::select(text,Polaridade)
 
-corpous <- VCorpus(VectorSource(dados$text))
-
-corpus <- tm_map(corpus, content_transformer(tolower))
-corpus <- tm_map(corpus, removePunctuation)
-corpus <- tm_map(corpus, removeNumbers)
-corpus <- tm_map(corpus, removeWords, stopwords('portuguese'))
-corpus <- tm_map(corpus, stripWhitespace)
-
-# Fazendo tokenização
-dados <- tidytext::unnest_tokens(dados, text, text)
-
 # Lendo arquivo de stopwords
-stopwords <- read.delim("https://raw.githubusercontent.com/thiagoscouto/stopwords_ptbr/master/stopwords_ptbr.txt",header = FALSE, stringsAsFactors = FALSE, encoding = "UTF-8")
-names(stopwords) <- "text"
+stopwords <- read.delim("https://raw.githubusercontent.com/Claudionor20/XSentiment/main/stopwords_.txt",header = FALSE, stringsAsFactors = FALSE, encoding = "UTF-8")
 
-# Acrescentando stopwords 
-novas_stopwords <- c("tá","tô","eh","né","oq","viu","in","ah","agr","vc", "vcs", "tb", "tmb", "tbm", "blz", "pq", "q", "qq", "kd", "blz", "blza", 
-                     "bora", "mano", "mto", "muito", "aff", "poxa", "po", "tipo", "aí", "véi", 
-                     "fala", "galera", "pessoal", "curti", "curte", "post", "posts", "segue", "seguindo",
-                     "segue-me", "vou", "vai", "tá", "to", "tô", "d+", "tudibom", "msg", "msgs", 
-                     "lol", "kkk", "rs", "rss", "rsrs", "rsrsrs", "n", "nao", "não", "eh", "ehh", 
-                     "uhul", "uhull", "oba", "eai", "eae", "e aí", "foda", "fod@", "fodao", 
-                     "vc", "vcs", "pf", "pff", "pls", "qnd", "qdo", "flw", "vlw", "valeu", "beleza", 
-                     "ok", "okay", "nunca", "sempre", "hoje", "amanha", "ontem", "hj", "msm", "mimimi","br")
-
-# Verificando diferenças
-unicas_stopwords <- setdiff(novas_stopwords, stopwords$text)
-novas_stopwords1 <- data.frame(text = unicas_stopwords)
+# Drope duplicados
+stopwords <- unique(stopwords)
 
 
-# Acrescentando stopwords
-stopwords <- rbind(stopwords, novas_stopwords1)
-                   
-# Removendo stopwords
-dados <- anti_join(dados,stopwords, by = "text")
+# Transformando em vetor
+stopwords <- as.vector(stopwords$V1)
 
-# Removendo a palavra anitta (Tem em todas)
-dados <- dados|>
-  dplyr::filter(text != "anitta")
+# Função de remoção de acentos
+remove_acentos <- function(text) {
+  text <- stri_trans_general(text, "latin-ascii")
+  
+  return(text)
+}
+
+# Criando dicionário de emojis
+emojis <- c("❤️" = " amor ","💗" = " amor ","🥰" = " amor ","💕" = " amor ","💜" = " amor ","🫶🏾" = " amor ","♥" = " amor ","💓" = " amor ","👏🏻" = " parabéns ",
+            "👏" = " parabéns ","🥹" = " amor ","😻" = " amor ","❤️‍🔥" = " amor ","😘" = " amor ","❣️" = " amor ","💟" = " amor ","🤢" = " nojo ",
+            "💖" = " amor ","🤮" = " nojo ","🔥" = " amor ","🖤" = " amor ","🫶🏼" = " amor ","🤩" = " amor ","💞" = " amor ","💝" = " amor ","😊" = " amor ")
+
+# Função de transformação de emojis
+substitute_emojis <- function(text, emoji_dict) {
+  for (emoji in names(emoji_dict)) {
+    text <- stri_replace_all_fixed(text, emoji, emoji_dict[[emoji]], vectorize_all = FALSE)
+  }
+  return(text)
+}
+
+# Criando corpus para utilizar a biblioteca tm
+corpus <- Corpus(VectorSource(dados$text))
+
+# Aplicando transformações no corpus
+corpus <- tm_map(corpus, removeWords, stopwords) # Removendo stopwords
+corpus <- tm_map(corpus, content_transformer(substitute_emojis),emojis) # Substituindo emojis
+corpus <- tm_map(corpus, content_transformer(remove_acentos)) # Removendo acentos
+corpus <- tm_map(corpus, content_transformer(tolower)) # Transformando em minúsculo
+corpus <- tm_map(corpus, removePunctuation) # Removendo pontuação
+corpus <- tm_map(corpus, removeNumbers) # Removendo números
+corpus <- tm_map(corpus, stripWhitespace) # Removendo espaços em branco
+corpus <- tm_map(corpus, removeWords, "anitta") # Removendo palavra "anitta"
+
+
+# Transformando em matriz de termos
+dtm <- DocumentTermMatrix(corpus)
+freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
+wordcloud(names(freq), freq, min.freq=20)
+dtm <- as.matrix(dtm)
 
 # Fazendo gráfico de palavras mais frequentes
 dados|>
