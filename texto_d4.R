@@ -53,8 +53,14 @@ corpus <- tm_map(corpus, content_transformer(remove_acentos)) # Removendo acento
 corpus <- tm_map(corpus, content_transformer(tolower)) # Transformando em minúsculo
 corpus <- tm_map(corpus, removePunctuation) # Removendo pontuação
 corpus <- tm_map(corpus, removeNumbers) # Removendo números
-corpus <- tm_map(corpus, stripWhitespace) # Removendo espaços em branco
 corpus <- tm_map(corpus, removeWords, "anitta") # Removendo palavra "anitta"
+corpus <- tm_map(corpus, stripWhitespace) # Removendo espaços em branco
+
+# Transformando corpus em dataframe
+dados_filtrado <- data.frame(text = sapply(corpus, as.character), stringsAsFactors = FALSE)
+
+# Adicionado coluna de polaridade
+dados_filtrado$Polaridade <- dados$Polaridade
 
 
 # Transformando em matriz de termos
@@ -63,12 +69,14 @@ freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
 wordcloud(names(freq), freq, min.freq=20)
 dtm <- as.matrix(dtm)
 
+
+dados_token <- tidytext::unnest_tokens(dados_filtrado, word, text)
 # Fazendo gráfico de palavras mais frequentes
-dados|>
-  filter(Polaridade == 1)|>
-  count(text, sort = TRUE)|>
-  slice(1:40)|>
-  ggplot(aes(x = reorder(text,n), y = n))+
+dados_token|>
+  filter(Polaridade == -1)|>
+  count(word, sort = TRUE)|>
+  slice(141:180)|>
+  ggplot(aes(x = reorder(word,n), y = n))+
   geom_col()+
   coord_flip()+
   labs(title = "Palavras mais frequentes",
