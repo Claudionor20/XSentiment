@@ -5,6 +5,9 @@ library(ggplot2)
 library(tm)
 library(stringi)
 library(wordcloud)
+library(textstem)
+
+
 
 # Lendo base
 load("dados_rotulados.rda")
@@ -62,6 +65,19 @@ dados_filtrado <- data.frame(text = sapply(corpus, as.character), stringsAsFacto
 # Adicionado coluna de polaridade
 dados_filtrado$Polaridade <- dados$Polaridade
 
+# Separando stopwords
+dados_filtrado <- tidytext::unnest_tokens(dados_filtrado, word, text)
+
+# Lendo dicionario de lematização
+lema <- read.delim("https://raw.githubusercontent.com/michmech/lemmatization-lists/master/lemmatization-pt.txt")
+names(lema) <- c("stem", "word")
+
+# Função de lematização
+dados_lem = dplyr::left_join(dados_filtrado, lema, 
+                             by='word')
+
+# Aplicando lematização
+dados_filtrado$text <- sapply(dados_filtrado$text, lematizar, lema)
 
 # Transformando em matriz de termos
 dtm <- DocumentTermMatrix(corpus)
