@@ -6,6 +6,7 @@ library(tm)
 library(stringi)
 library(wordcloud)
 library(textstem)
+library(rtweet)
 
 
 
@@ -141,7 +142,7 @@ variacao_arrasar <- c("arrasa","arrasouuu")
 dados_filtrado <- dados_filtrado|>
   mutate(word = ifelse(word %in% variacao_arrasar, "arrasar", word))
 
-variacao_arrepiar <- c("arrepia","arrepiadissimo","arrepiante","arrepiei", "arrepio",)
+variacao_arrepiar <- c("arrepia","arrepiadissimo","arrepiante","arrepiei", "arrepio")
 
 dados_filtrado <- dados_filtrado|>
   mutate(word = ifelse(word %in% variacao_arrepiar, "arrepiar", word))
@@ -180,14 +181,44 @@ dados_filtrado <- dados_filtrado|>
 write.csv(dados_filtrado, "dados_filtrado.csv")
 
 # Lendo dicionario de lematização
-lema <- read.delim("https://raw.githubusercontent.com/michmech/lemmatization-lists/master/lemmatization-pt.txt")
+lema <- read.delim("https://raw.githubusercontent.com/Claudionor20/XSentiment/main/lematizacao.txt",header = FALSE, stringsAsFactors = FALSE, encoding = "UTF-8")
 names(lema) <- c("stem", "word")
 
 # Função de lematização
 dados_lem = dplyr::left_join(dados_filtrado, lema, 
                              by='word')
+dados_lem$word = ifelse(is.na(dados_lem$stem),
+                            dados_lem$word,dados_lem$stem)
+dados_lem = dplyr::select(dados_lem,-stem)
 
 
+#Contando a frequencia das palavras
+dados_lem = group_by(dados_lem,word)
+freq = arrange(summarize(dados_lem, frequencia = n()),
+               desc(frequencia))
+dados_lem = left_join(dados_lem,freq,'word')
+dados_lem = ungroup(dados_lem)
+
+# Removendo palavras com frequencia menor que 10
+dados_lem = filter(dados_lem,frequencia >= 10)
+
+# contando frequencia das palavras dentro do tweet
+dados_freq = group_by(dados_lem,Polaridade,word)
+freq_palavra = summarize(dados_freq,word,frequencia=n())
+freq_palavra = unique(freq_palavra)
+dados_freq = ungroup(dados_freq)
+dados_freq = group_by(dados_lem,Polaridade)
+
+total_palavras = summarize(dados_freq,TotalPalavras = n())
+freq_palavra = left_join(freq_palavra,total_palavras,by='Polaridade')
+freq_palavra = mutate(freq_palavra,FreqPercentual = frequencia/TotalPalavras)
+
+dados_freq = select(freq_palavra,-c(frequencia,TotalPalavras))
+
+# Matriz termo documento
+matriz_ftd<-tidyr::pivot_wider(dados_freq, id_cols = c(RecordID), names_from = Palavras, values_from = FreqPercentual)
+
+matriz_ftd<-replace(matriz_ftd,is.na(matriz_ftd), 0)
 
 # Transformando em matriz de termos
 dtm <- DocumentTermMatrix(corpus)
