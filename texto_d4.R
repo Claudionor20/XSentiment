@@ -181,7 +181,7 @@ dados_filtrado <- dados_filtrado|>
 write.csv(dados_filtrado, "dados_filtrado.csv")
 
 # Lendo dicionario de lematização
-lema <- read.delim("https://raw.githubusercontent.com/Claudionor20/XSentiment/main/lematizacao.txt",header = FALSE, stringsAsFactors = FALSE, encoding = "UTF-8")
+lema <- read.delim("https://raw.githubusercontent.com/Claudionor20/XSentiment/main/lemmatization-pt.txt",header = FALSE, stringsAsFactors = FALSE, encoding = "UTF-8")
 names(lema) <- c("stem", "word")
 
 # Função de lematização
@@ -216,7 +216,7 @@ freq_palavra = mutate(freq_palavra,FreqPercentual = frequencia/TotalPalavras)
 dados_freq = select(freq_palavra,-c(frequencia,TotalPalavras))
 
 # Matriz termo documento
-matriz_ftd<-tidyr::pivot_wider(dados_freq, id_cols = c(RecordID), names_from = Palavras, values_from = FreqPercentual)
+matriz_ftd<-tidyr::pivot_wider(dados_freq, id_cols = c(Polaridade), names_from = word, values_from = FreqPercentual)
 
 matriz_ftd<-replace(matriz_ftd,is.na(matriz_ftd), 0)
 
