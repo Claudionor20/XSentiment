@@ -191,7 +191,6 @@ dados_lem$word = ifelse(is.na(dados_lem$stem),
                             dados_lem$word,dados_lem$stem)
 dados_lem = dplyr::select(dados_lem,-stem)
 
-
 #Contando a frequencia das palavras
 dados_lem = group_by(dados_lem,word)
 freq = arrange(summarize(dados_lem, frequencia = n()),
@@ -199,11 +198,16 @@ freq = arrange(summarize(dados_lem, frequencia = n()),
 dados_lem = left_join(dados_lem,freq,'word')
 dados_lem = ungroup(dados_lem)
 
-# Removendo palavras com frequencia menor que 10
-dados_lem = filter(dados_lem,frequencia >= 10)
+# filtrando palavras com a frequencia minima
+freq_min <- 10
+dados_min<-dplyr::filter(dados_lem,
+                         frequencia>=freq_min)
+
+# dropar duplicados
+dados_min = unique(dados_min)
 
 # contando frequencia das palavras dentro do tweet
-dados_freq = group_by(dados_lem,Polaridade,word)
+dados_freq = group_by(dados_min,Polaridade,word)
 freq_palavra = summarize(dados_freq,word,frequencia=n())
 freq_palavra = unique(freq_palavra)
 dados_freq = ungroup(dados_freq)
@@ -215,7 +219,12 @@ freq_palavra = mutate(freq_palavra,FreqPercentual = frequencia/TotalPalavras)
 
 dados_freq = select(freq_palavra,-c(frequencia,TotalPalavras))
 
-# Matriz termo documento
+dados_freq = unique(dados_freq)
+
+# Ver classe das colunas
+dados$Polaridade = as.factor(dados$Polaridade)
+
+
 matriz_ftd<-tidyr::pivot_wider(dados_freq, id_cols = c(Polaridade), names_from = word, values_from = FreqPercentual)
 
 matriz_ftd<-replace(matriz_ftd,is.na(matriz_ftd), 0)
