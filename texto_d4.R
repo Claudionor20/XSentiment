@@ -50,14 +50,14 @@ substitute_emojis <- function(text, emoji_dict) {
 corpus <- Corpus(VectorSource(dados$text))
 
 # Aplicando transformações no corpus
-corpus <- tm_map(corpus, removeWords, stopwords) # Removendo stopwords
-corpus <- tm_map(corpus, content_transformer(substitute_emojis),emojis) # Substituindo emojis
-corpus <- tm_map(corpus, content_transformer(remove_acentos)) # Removendo acentos
 corpus <- tm_map(corpus, content_transformer(tolower)) # Transformando em minúsculo
 corpus <- tm_map(corpus, removePunctuation) # Removendo pontuação
+corpus <- tm_map(corpus, content_transformer(remove_acentos)) # Removendo acentos
 corpus <- tm_map(corpus, removeNumbers) # Removendo números
-corpus <- tm_map(corpus, removeWords, "anitta") # Removendo palavra "anitta"
+corpus <- tm_map(corpus, removeWords, stopwords) # Removendo stopwords
+corpus <- tm_map(corpus, content_transformer(substitute_emojis),emojis) # Substituindo emojis
 corpus <- tm_map(corpus, stripWhitespace) # Removendo espaços em branco
+
 
 # Transformando corpus em dataframe
 dados_filtrado <- data.frame(text = sapply(corpus, as.character), stringsAsFactors = FALSE)
@@ -84,31 +84,97 @@ variacoes_agora <- c("agoraaaaaaa")
 dados_filtrado <- dados_filtrado|>
   mutate(word = ifelse(word %in% variacoes_agora, "agora", word))
 
-variacoes_anitta <- c("anittaaaaa", "anita", "aniraaaa", "aninha", "aninhaaaaa", "anira", "aniraaa", "anittaaaaaaa")
+variacoes_anitta <- c("anittaaaaa", "anita", "aniraaaa", "aninha", "aninhaaaaa", "anira", "aniraaa", "anittaaaaaaa","anitta")
 
 dados_filtrado <- dados_filtrado|>
   filter(!word %in% variacoes_anitta)
 
-variacoes_caralho <- c("krl","krlh","caralho", "caralhoooo", "caralh", "caralhooooo", "carai", "caraaaaai", "caralhoo", "caralhoooooo", "caralhas")
+variacoes_caralho <- c("crllll","crlh","crl","caalho","caaaralho","krl","krlh","caralho", "caralhoooo", "caralh", "caralhooooo", "carai", "caraaaaai", "caralhoo", "caralhoooooo", "caralhas")
 
 dados_filtrado <- dados_filtrado|>
   mutate(word = ifelse(word %in% variacoes_caralho, "caralho", word))
 
 # Removendo variaçoes de risada
 
-variacoes_risada <- c("kakakakakakkakakak","kakakakakakak","kakakaka","kjkk","kkkkkkkkkkkkkk","ksdjskskk","k","kakak","kkkkkkkkkkkkk","mkkkkkkk",
+variacoes_risada <- c("kakkakakak","kakakakakakkakakakakakakakak","kakakakakakakakakakakakakakakakakakakakakak","kakakakakakkakakak","kakakakakakak","kakakaka","kjkk","kkkkkkkkkkkkkk","ksdjskskk","k","kakak","kkkkkkkkkkkkk","mkkkkkkk",
                       "kkkkkkkkkkk","kkkkkkkkmmm","kskskskkskskzkzkzkzm","mkk","kskkskskskkskskkskkskskks","kkl","kkakakakaka","kkkkkkkkkkkk","mlk",
-                      "ldhkdhaksjskjkh","kksjdskkdkss","ksxbkdjxkdbdj","akakakakak","akaka","kkkj","lllllllkkkkkkkkk")
+                      "ldhkdhaksjskjkh","kksjdskkdkss","ksxbkdjxkdbdj","akakakakak","akaka","kkkj","lllllllkkkkkkkkk","kkkkkkkkkkkkkkkkkkkkkkk",
+                      "hahhaha", "haha", "hahaha", "hahahaha", "haha", "hahahha","hahhahahhahah", "hahahahahha", "hahahahahahahha", "hahahahahhahaa", 
+                      "hahahah", "hahahaha", "haha", "haushsshsshsushsuhsshssushuahsushsishsushauahaushuahsjsjaushsj", "ahahaha",
+                      "hahahaha", "hahahaha", "hahahhahaha", "hahahahaha", "haha", "hahahhaahahahahhaa", "hahahahahaah", "hahahaha",
+                      "kkakakakakak", "kkkkkkkcomotanka","kkkkkkkkkkkkkkk","kkkkkkkkkkkkkkkk", "kkkkkkkkkkkkkkkkkkkkk", "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk")
+
 
 dados_filtrado <- dados_filtrado|>
   filter(!word %in% variacoes_risada)
 
 
+variacoes_amor <- c("amor", "amo","ama","amado","amooo","amamos","amada","amoooooo","amam","amoooo","am","amooooooo","amooooo","amaa","amar")
+
+dados_filtrado <- dados_filtrado|>
+  mutate(word = ifelse(word %in% variacoes_amor, "amor", word))
 
 
+variacoes_bolsonaro <- c("bolso", "bolsobosta", "bolsominion", "bolsonara", "bolsonario", "bolsonarista", "bolsonaristas", "bolsonaro", "bolsonaronoflow", "bolsonaropresidente", "bolsonaroreeleito", "bolsonaroreeleitoem", 
+                          "bolsonarotemrazao", "bolsonet", "bolsoney", "bolsonitta","bozo","jairbolsonaro")
 
+dados_filtrado <- dados_filtrado|>
+  mutate(word = ifelse(word %in% variacoes_bolsonaro, "bolsonaro", word))
 
+variacao_admirar <- c("admiravel","admira","admiracao")
 
+dados_filtrado <- dados_filtrado|>
+  mutate(word = ifelse(word %in% variacao_admirar, "admirar", word))
+
+variacao_adoro <- c("adoro")
+
+dados_filtrado <- dados_filtrado|>
+  mutate(word = ifelse(word %in% variacao_adoro, "adorar", word))
+
+variacao_agradecer <- c("agradecida", "agradecimentos","agradeco")
+
+dados_filtrado <- dados_filtrado|>
+  mutate(word = ifelse(word %in% variacao_agradecer, "agradecer", word))
+
+variacao_arrasar <- c("arrasa","arrasouuu")
+
+dados_filtrado <- dados_filtrado|>
+  mutate(word = ifelse(word %in% variacao_arrasar, "arrasar", word))
+
+variacao_arrepiar <- c("arrepia","arrepiadissimo","arrepiante","arrepiei", "arrepio",)
+
+dados_filtrado <- dados_filtrado|>
+  mutate(word = ifelse(word %in% variacao_arrepiar, "arrepiar", word))
+
+variacao_artista <- c("artist","artista","artistica","artistico")
+
+dados_filtrado <- dados_filtrado|>
+  mutate(word = ifelse(word %in% variacao_artista, "artistas", word))
+
+variacao_assistir <- c("assisti", "assistia", "assistia")
+
+dados_filtrado <- dados_filtrado|>
+  mutate(word = ifelse(word %in% variacao_assistir, "assistir", word))
+
+variacao_ludmila <- c("lud","ludmila","ludmilla","ludimilla")
+
+dados_filtrado <- dados_filtrado|>
+  mutate(word = ifelse(word %in% variacao_ludmila, "ludmila", word))
+
+variacao_pablo <- c("pabllo", "pablo", "pablovitta")
+
+dados_filtrado <- dados_filtrado|>
+  mutate(word = ifelse(word %in% variacao_pablo, "pabllovittar", word))
+
+variacao_pqp <- c("pqp", "pqppp", "pqpppp", "pqppppp")
+
+dados_filtrado <- dados_filtrado|>
+  filter(!word %in% variacao_pqp)
+
+variacao_tudo <- c("tudoh", "tudoooo", "tudooooh", "tudooooo", "tudoooooooo", "tudooooooooooooooooooooo", "tudovei")
+
+dados_filtrado <- dados_filtrado|>
+  mutate(word = ifelse(word %in% variacao_tudo, "tudooo", word))
 
 # Transformando em csv
 write.csv(dados_filtrado, "dados_filtrado.csv")
@@ -121,8 +187,6 @@ names(lema) <- c("stem", "word")
 dados_lem = dplyr::left_join(dados_filtrado, lema, 
                              by='word')
 
-# transformando em csv
-write.csv(dados_lem, "dados_lem.csv")
 
 
 # Transformando em matriz de termos
