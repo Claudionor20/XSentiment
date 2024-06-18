@@ -68,6 +68,51 @@ dados_filtrado$Polaridade <- dados$Polaridade
 # Separando stopwords
 dados_filtrado <- tidytext::unnest_tokens(dados_filtrado, word, text)
 
+# Trocando palavras repetidas
+variacoes_a <- c("aaaaa", "aaaudjak", "aaaaah", "aaaaaaaaaa", "aaaaaa", "aaaaaaaaa", "aaaaaaa", "aaa", "aaaff", "aaaaaaaaaaaaaaaaaaaa","aaaaaaaaaaa", "aaaa")
+
+dados_filtrado <- dados_filtrado|>
+  mutate(word = ifelse(word %in% variacoes_a, "empolgado", word))
+
+variacoes_ah <- c("ahhhhhhhhhhhhhhhhhhhhhhhhhhh", "ahhh", "ahhhhh")
+
+dados_filtrado <- dados_filtrado|>
+  mutate(word = ifelse(word %in% variacoes_ah, "ah", word))
+
+variacoes_agora <- c("agoraaaaaaa")
+
+dados_filtrado <- dados_filtrado|>
+  mutate(word = ifelse(word %in% variacoes_agora, "agora", word))
+
+variacoes_anitta <- c("anittaaaaa", "anita", "aniraaaa", "aninha", "aninhaaaaa", "anira", "aniraaa", "anittaaaaaaa")
+
+dados_filtrado <- dados_filtrado|>
+  filter(!word %in% variacoes_anitta)
+
+variacoes_caralho <- c("krl","krlh","caralho", "caralhoooo", "caralh", "caralhooooo", "carai", "caraaaaai", "caralhoo", "caralhoooooo", "caralhas")
+
+dados_filtrado <- dados_filtrado|>
+  mutate(word = ifelse(word %in% variacoes_caralho, "caralho", word))
+
+# Removendo variaçoes de risada
+
+variacoes_risada <- c("kakakakakakkakakak","kakakakakakak","kakakaka","kjkk","kkkkkkkkkkkkkk","ksdjskskk","k","kakak","kkkkkkkkkkkkk","mkkkkkkk",
+                      "kkkkkkkkkkk","kkkkkkkkmmm","kskskskkskskzkzkzkzm","mkk","kskkskskskkskskkskkskskks","kkl","kkakakakaka","kkkkkkkkkkkk","mlk",
+                      "ldhkdhaksjskjkh","kksjdskkdkss","ksxbkdjxkdbdj","akakakakak","akaka","kkkj","lllllllkkkkkkkkk")
+
+dados_filtrado <- dados_filtrado|>
+  filter(!word %in% variacoes_risada)
+
+
+
+
+
+
+
+
+# Transformando em csv
+write.csv(dados_filtrado, "dados_filtrado.csv")
+
 # Lendo dicionario de lematização
 lema <- read.delim("https://raw.githubusercontent.com/michmech/lemmatization-lists/master/lemmatization-pt.txt")
 names(lema) <- c("stem", "word")
@@ -76,8 +121,9 @@ names(lema) <- c("stem", "word")
 dados_lem = dplyr::left_join(dados_filtrado, lema, 
                              by='word')
 
-# Aplicando lematização
-dados_filtrado$text <- sapply(dados_filtrado$text, lematizar, lema)
+# transformando em csv
+write.csv(dados_lem, "dados_lem.csv")
+
 
 # Transformando em matriz de termos
 dtm <- DocumentTermMatrix(corpus)
