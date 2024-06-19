@@ -48,16 +48,21 @@ substitute_emojis <- function(text, emoji_dict) {
 }
 
 # Criando corpus para utilizar a biblioteca tm
-corpus <- Corpus(VectorSource(dados$text))
+corpus <- Corpus(VectorSource(dados))
 
 # Aplicando transformações no corpus
-corpus <- tm_map(corpus, content_transformer(tolower)) # Transformando em minúsculo
-corpus <- tm_map(corpus, removePunctuation) # Removendo pontuação
-corpus <- tm_map(corpus, content_transformer(remove_acentos)) # Removendo acentos
-corpus <- tm_map(corpus, removeNumbers) # Removendo números
-corpus <- tm_map(corpus, removeWords, stopwords) # Removendo stopwords
-corpus <- tm_map(corpus, content_transformer(substitute_emojis),emojis) # Substituindo emojis
-corpus <- tm_map(corpus, stripWhitespace) # Removendo espaços em branco
+corpus <- tm_map(corpus[1], content_transformer(tolower)) # Transformando em minúsculo
+corpus <- tm_map(corpus[1], removePunctuation) # Removendo pontuação
+corpus <- tm_map(corpus[1], content_transformer(remove_acentos)) # Removendo acentos
+corpus <- tm_map(corpus[1], removeNumbers) # Removendo números
+corpus <- tm_map(corpus[1], removeWords, stopwords) # Removendo stopwords
+corpus <- tm_map(corpus[1], content_transformer(substitute_emojis),emojis) # Substituindo emojis
+corpus <- tm_map(corpus[1], stripWhitespace) # Removendo espaços em branco
+
+# Juntando corpus e polaridade
+dados <- cbind(corpus, dados$Polaridade)
+
+
 
 
 # Transformando corpus em dataframe
@@ -117,7 +122,7 @@ dados_filtrado <- dados_filtrado|>
 
 
 variacoes_bolsonaro <- c("imbroxavel","bolso", "bolsobosta", "bolsominion", "bolsonara", "bolsonario", "bolsonarista", "bolsonaristas", "bolsonaro", "bolsonaronoflow", "bolsonaropresidente", "bolsonaroreeleito", "bolsonaroreeleitoem", 
-                          "bolsonarotemrazao", "bolsonet", "bolsoney", "bolsonitta","bozo","jairbolsonaro")
+                          "bolsonarotemrazao", "bolsonet", "bolsoney", "bolsonitta","bozo","jairbolsonaro","jair")
 
 dados_filtrado <- dados_filtrado|>
   mutate(word = ifelse(word %in% variacoes_bolsonaro, "bolsonaro", word))
@@ -181,7 +186,7 @@ dados_filtrado <- dados_filtrado|>
 write.csv(dados_filtrado, "dados_filtrado.csv")
 
 # Lendo dicionario de lematização
-lema <- read.delim("https://raw.githubusercontent.com/Claudionor20/XSentiment/main/lemmatization-pt.txt",header = FALSE, stringsAsFactors = FALSE, encoding = "UTF-8")
+lema <- read.delim("https://raw.githubusercontent.com/Claudionor20/XSentiment/main/lema_claudio.txt",header = FALSE, stringsAsFactors = FALSE, encoding = "UTF-8")
 names(lema) <- c("stem", "word")
 
 # Função de lematização
@@ -199,15 +204,16 @@ dados_lem = left_join(dados_lem,freq,'word')
 dados_lem = ungroup(dados_lem)
 
 # filtrando palavras com a frequencia minima
-freq_min <- 10
+freq_min <- 15
 dados_min<-dplyr::filter(dados_lem,
                          frequencia>=freq_min)
 
-# dropar duplicados
-dados_min = unique(dados_min)
+
+data_unique <- dados_min %>%
+  distinct(word, .keep_all = TRUE)
 
 # contando frequencia das palavras dentro do tweet
-dados_freq = group_by(dados_min,Polaridade,word)
+dados_freq = group_by(data_unique,Polaridade,word)
 freq_palavra = summarize(dados_freq,word,frequencia=n())
 freq_palavra = unique(freq_palavra)
 dados_freq = ungroup(dados_freq)
