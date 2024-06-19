@@ -47,32 +47,29 @@ substitute_emojis <- function(text, emoji_dict) {
   return(text)
 }
 
-# Criando corpus para utilizar a biblioteca tm
-corpus <- Corpus(VectorSource(dados))
+#criando coluna identificador
 
-# Aplicando transformações no corpus
-corpus <- tm_map(corpus[1], content_transformer(tolower)) # Transformando em minúsculo
-corpus <- tm_map(corpus[1], removePunctuation) # Removendo pontuação
-corpus <- tm_map(corpus[1], content_transformer(remove_acentos)) # Removendo acentos
-corpus <- tm_map(corpus[1], removeNumbers) # Removendo números
-corpus <- tm_map(corpus[1], removeWords, stopwords) # Removendo stopwords
-corpus <- tm_map(corpus[1], content_transformer(substitute_emojis),emojis) # Substituindo emojis
-corpus <- tm_map(corpus[1], stripWhitespace) # Removendo espaços em branco
+dados = mutate(dados, RecordID = c(1:length(dados$text)))
+dados = select(dados,c(RecordID,everything()))
 
-# Juntando corpus e polaridade
-dados <- cbind(corpus, dados$Polaridade)
-
-
-
-
-# Transformando corpus em dataframe
-dados_filtrado <- data.frame(text = sapply(corpus, as.character), stringsAsFactors = FALSE)
-
-# Adicionado coluna de polaridade
-dados_filtrado$Polaridade <- dados$Polaridade
+# Removendo emojis
+dados <- dados|>
+  mutate(text = substitute_emojis(text, emojis))
 
 # Separando stopwords
-dados_filtrado <- tidytext::unnest_tokens(dados_filtrado, word, text)
+dados <- tidytext::unnest_tokens(dados, word, text)
+
+# Removendo acentos
+dados <- dados|>
+  mutate(word = remove_acentos(word))
+
+
+
+# Removendo stopwords
+dados_filtrado <- dados|>
+  filter(!word %in% stopwords)
+
+
 
 # Trocando palavras repetidas
 variacoes_a <- c("aaaaa", "aaaudjak", "aaaaah", "aaaaaaaaaa", "aaaaaa", "aaaaaaaaa", "aaaaaaa", "aaa", "aaaff", "aaaaaaaaaaaaaaaaaaaa","aaaaaaaaaaa", "aaaa")
@@ -209,52 +206,24 @@ dados_min<-dplyr::filter(dados_lem,
                          frequencia>=freq_min)
 
 
-data_unique <- dados_min %>%
-  distinct(word, .keep_all = TRUE)
-
 # contando frequencia das palavras dentro do tweet
-dados_freq = group_by(data_unique,Polaridade,word)
+dados_freq = group_by(dados_min,RecordID,word)
 freq_palavra = summarize(dados_freq,word,frequencia=n())
 freq_palavra = unique(freq_palavra)
 dados_freq = ungroup(dados_freq)
-dados_freq = group_by(dados_lem,Polaridade)
+dados_freq = group_by(dados_lem,RecordID)
 
 total_palavras = summarize(dados_freq,TotalPalavras = n())
-freq_palavra = left_join(freq_palavra,total_palavras,by='Polaridade')
+freq_palavra = left_join(freq_palavra,total_palavras,by='RecordID')
 freq_palavra = mutate(freq_palavra,FreqPercentual = frequencia/TotalPalavras)
 
 dados_freq = select(freq_palavra,-c(frequencia,TotalPalavras))
 
-dados_freq = unique(dados_freq)
 
-# Ver classe das colunas
-dados$Polaridade = as.factor(dados$Polaridade)
-
-
-matriz_ftd<-tidyr::pivot_wider(dados_freq, id_cols = c(Polaridade), names_from = word, values_from = FreqPercentual)
-
-matriz_ftd<-replace(matriz_ftd,is.na(matriz_ftd), 0)
-
-# Transformando em matriz de termos
-dtm <- DocumentTermMatrix(corpus)
-freq <- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
-wordcloud(names(freq), freq, min.freq=20)
-dtm <- as.matrix(dtm)
+tdm <- dados_freq %>%
+  tidyr::spread(key = word, value = FreqPercentual, fill = 0)
 
 
-dados_token <- tidytext::unnest_tokens(dados_filtrado, word, text)
-# Fazendo gráfico de palavras mais frequentes
-dados_token|>
-  filter(Polaridade == -1)|>
-  count(word, sort = TRUE)|>
-  slice(141:180)|>
-  ggplot(aes(x = reorder(word,n), y = n))+
-  geom_col()+
-  coord_flip()+
-  labs(title = "Palavras mais frequentes",
-       x = "Palavras",
-       y = "Frequência")+
-  theme_minimal()
 
 
 
