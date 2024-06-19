@@ -90,7 +90,7 @@ variacoes_anitta <- c("anittaaaaa", "anita", "aniraaaa", "aninha", "aninhaaaaa",
 dados_filtrado <- dados_filtrado|>
   filter(!word %in% variacoes_anitta)
 
-variacoes_caralho <- c("crllll","crlh","crl","caalho","caaaralho","krl","krlh","caralho", "caralhoooo", "caralh", "caralhooooo", "carai", "caraaaaai", "caralhoo", "caralhoooooo", "caralhas")
+variacoes_caralho <- c("caralhu","crllll","crlh","crl","caalho","caaaralho","krl","krlh","caralho", "caralhoooo", "caralh", "caralhooooo", "carai", "caraaaaai", "caralhoo", "caralhoooooo", "caralhas")
 
 dados_filtrado <- dados_filtrado|>
   mutate(word = ifelse(word %in% variacoes_caralho, "caralho", word))
@@ -116,7 +116,7 @@ dados_filtrado <- dados_filtrado|>
   mutate(word = ifelse(word %in% variacoes_amor, "amor", word))
 
 
-variacoes_bolsonaro <- c("bolso", "bolsobosta", "bolsominion", "bolsonara", "bolsonario", "bolsonarista", "bolsonaristas", "bolsonaro", "bolsonaronoflow", "bolsonaropresidente", "bolsonaroreeleito", "bolsonaroreeleitoem", 
+variacoes_bolsonaro <- c("imbroxavel","bolso", "bolsobosta", "bolsominion", "bolsonara", "bolsonario", "bolsonarista", "bolsonaristas", "bolsonaro", "bolsonaronoflow", "bolsonaropresidente", "bolsonaroreeleito", "bolsonaroreeleitoem", 
                           "bolsonarotemrazao", "bolsonet", "bolsoney", "bolsonitta","bozo","jairbolsonaro")
 
 dados_filtrado <- dados_filtrado|>
