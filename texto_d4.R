@@ -11,6 +11,8 @@ library(caret)
 library(lexiconPT)
 library(maditr)
 library(xgboost)
+library(ROSE)
+library(corrplot)
 
 # Lendo base
 load("dados_rotulados.rda")
@@ -253,21 +255,44 @@ scores = dplyr::summarize(dados_sent,score=sum(`Polaridade Palavra`))
 matriz_ftd = dplyr::left_join(tdm,scores,by='RecordID')
 matriz_ftd = select(matriz_ftd,c(Polaridade,everything()))
 # Tirando recordeID
-matriz_ftd = select(matriz_ftd,-RecordID)
+matriz_ftd = select(matriz_ftd,-RecordID,-score)
 
 # Transformar coluna polaridade em 0 e 1
 matriz_ftd$Polaridade = ifelse(matriz_ftd$Polaridade == "-1", 0, 1)
+
+
 # Separando em treino e teste
 
 set.seed(123)
-matriz_ftd$Polaridade = as.factor(matriz_ftd$Polaridade)
 notreino <- createDataPartition(matriz_ftd$Polaridade, p = 0.7, list = FALSE)
 treino <- matriz_ftd[notreino,]
 teste <- matriz_ftd[-notreino,]
 
-sapply(treino, class)
+# usando findCorrelation para remover colunas correlacionadas
+correlacao <- findCorrelation(cor(treino[, -1]), cutoff = 0.75)
+treino <- treino[,-41]
 
 
+
+# Faça um upsample
+up_treino <- upSample(x = treino[, -1],
+                      y = treino$Polaridade,yname="Polaridade")
+
+treino1 <- up_treino$x
+
+# dando um rbind para juntar treino e teste
+treino <- cbind(treino1,up_treino$y)
+
+treino<-treino|>
+  rename(Polaridade = "V2")
+
+corrplot(cor(treino[, -1]), method = "circle")
+
+treino <- treino|>
+  select(-V1,-amar)
+
+
+table(treino$Polaridade)
 otimizador <- function(predicao, resposta) {
   require(ROCR)
   
@@ -300,7 +325,7 @@ otimizador <- function(predicao, resposta) {
 param_grid <- expand.grid(
   eta = c(0.3),
   max_depth = c(6),
-  nrounds = c(1000),
+  nrounds = c(10006),
   early_stopping_rounds = c(10)
 )
 
@@ -333,10 +358,10 @@ for (i in 1:nrow(param_grid)) {
     
     # Separar dados de treino e validação
     treino_fold <- treino[-fold,]
-    dtrain <- xgb.DMatrix(data = as.matrix(treino_fold[,-length(treino_fold)]), label = as.matrix(as.factor(treino_fold$Polaridade)))
+    dtrain <- xgb.DMatrix(data = as.matrix(treino_fold[,-1]), label = as.matrix(as.factor(treino_fold$Polaridade)))
     
     validacao_fold <- treino[fold,]
-    dvalid <- xgb.DMatrix(data = as.matrix(validacao_fold[,-length(validacao_fold)]), label = as.matrix(as.factor(validacao_fold$Polaridade)))
+    dvalid <- xgb.DMatrix(data = as.matrix(validacao_fold[,-1]), label = as.matrix(as.factor(validacao_fold$Polaridade)))
     
     # Treinar o modelo com o fold de treino
     set.seed(5415)
@@ -345,7 +370,10 @@ for (i in 1:nrow(param_grid)) {
                           nrounds = params$nrounds, 
                           early_stopping_rounds=params$early_stopping_rounds,
                           objective = "binary:hinge",
-                          verbose = 0)
+                          verbose = 0,
+                          subsample = 0.8,
+                          lambda = 1,
+                          colsample_bytree = 0.8)
     
     # Predição na validação
     predicao_validacao <- predict(xgbm_model, newdata = dvalid)
@@ -385,4 +413,5 @@ for (i in 1:nrow(param_grid)) {
   
 }
 
+cm
 
