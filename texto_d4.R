@@ -193,8 +193,7 @@ variacao_tudo <- c("tudoh", "tudoooo", "tudooooh", "tudooooo", "tudoooooooo", "t
 dados_filtrado <- dados_filtrado|>
   mutate(word = ifelse(word %in% variacao_tudo, "tudooo", word))
 
-# Transformando em csv
-write.csv(dados_filtrado, "dados_filtrado.csv")
+
 
 # Lendo dicionario de lematização
 lema <- read.delim("https://raw.githubusercontent.com/Claudionor20/XSentiment/main/lema_claudio.txt",header = FALSE, stringsAsFactors = FALSE, encoding = "UTF-8")
@@ -234,62 +233,34 @@ freq_palavra = mutate(freq_palavra,FreqPercentual = frequencia/TotalPalavras)
 dados_freq = select(freq_palavra,-c(frequencia,TotalPalavras))
 
 # Criando matriz termo documento com polaridade
-tdm = dcast(dados_freq, RecordID + Polaridade ~ word, value.var = "FreqPercentual")
+tdm <- dcast(dados_freq, RecordID + Polaridade ~ word, value.var = "FreqPercentual")
 
 tdm<-replace(tdm,is.na(tdm), 0)
 
-##Realizar analise de sentimento
-#carregando dicionario lexico
-oplexicon = lexiconPT::oplexicon_v3.0
-names(oplexicon) = c('word','Classe','Polaridade Palavra','Polaridade Revisada')
+# Transformando coluna polaridade em 0 e 1
 
-#Vamos usar o dados_lem, pois possui o tweet
-#prox do seu formato inicial (sem cortes por freq)
-dados_sent = dplyr::left_join(dados_lem,oplexicon,by='word')
-dados_sent$`Polaridade Palavra` = replace(dados_sent$`Polaridade Palavra`,is.na(dados_sent$`Polaridade Palavra`), 0)
-dados_sent = dplyr::group_by(dados_sent, RecordID)
-scores = dplyr::summarize(dados_sent,score=sum(`Polaridade Palavra`))
+tdm$Polaridade = ifelse(tdm$Polaridade == "1", 1, 0)
 
+tdm <- tdm|>
+  select(-RecordID)
 
-#termo-documento por frequncia (Bag of Words)
-matriz_ftd = dplyr::left_join(tdm,scores,by='RecordID')
-matriz_ftd = select(matriz_ftd,c(Polaridade,everything()))
-# Tirando recordeID
-matriz_ftd = select(matriz_ftd,-RecordID,-score)
+# Colocando a coluna polaridade no final
+tdm <- tdm|>
+  select(-Polaridade)|>
+  cbind(tdm$Polaridade)
 
-# Transformar coluna polaridade em 0 e 1
-matriz_ftd$Polaridade = ifelse(matriz_ftd$Polaridade == "-1", 0, 1)
+tdm <- tdm|>
+  rename(Polaridade = V2)
+  
 
 
 # Separando em treino e teste
 
 set.seed(123)
-notreino <- createDataPartition(matriz_ftd$Polaridade, p = 0.7, list = FALSE)
-treino <- matriz_ftd[notreino,]
-teste <- matriz_ftd[-notreino,]
+notreino <- createDataPartition(tdm$Polaridade, p = 0.7, list = FALSE)
+treino <- tdm[notreino,]
+teste <- tdm[-notreino,]
 
-# usando findCorrelation para remover colunas correlacionadas
-correlacao <- findCorrelation(cor(treino[, -1]), cutoff = 0.75)
-treino <- treino[,-41]
-
-
-
-# Faça um upsample
-up_treino <- upSample(x = treino[, -1],
-                      y = treino$Polaridade,yname="Polaridade")
-
-treino1 <- up_treino$x
-
-# dando um rbind para juntar treino e teste
-treino <- cbind(treino1,up_treino$y)
-
-treino<-treino|>
-  rename(Polaridade = "V2")
-
-corrplot(cor(treino[, -1]), method = "circle")
-
-treino <- treino|>
-  select(-V1,-amar)
 
 
 table(treino$Polaridade)
@@ -358,10 +329,10 @@ for (i in 1:nrow(param_grid)) {
     
     # Separar dados de treino e validação
     treino_fold <- treino[-fold,]
-    dtrain <- xgb.DMatrix(data = as.matrix(treino_fold[,-1]), label = as.matrix(as.factor(treino_fold$Polaridade)))
+    dtrain <- xgb.DMatrix(data = as.matrix(treino_fold[,-301]), label = as.matrix(as.factor(treino_fold$Polaridade)))
     
     validacao_fold <- treino[fold,]
-    dvalid <- xgb.DMatrix(data = as.matrix(validacao_fold[,-1]), label = as.matrix(as.factor(validacao_fold$Polaridade)))
+    dvalid <- xgb.DMatrix(data = as.matrix(validacao_fold[,-301]), label = as.matrix(as.factor(validacao_fold$Polaridade)))
     
     # Treinar o modelo com o fold de treino
     set.seed(5415)
@@ -412,6 +383,7 @@ for (i in 1:nrow(param_grid)) {
   
   
 }
+
 
 cm
 
