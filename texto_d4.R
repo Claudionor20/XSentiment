@@ -13,6 +13,9 @@ library(maditr)
 library(xgboost)
 library(ROSE)
 library(corrplot)
+library(SMOTEWB)
+
+
 
 # Lendo base
 load("dados_rotulados.rda")
@@ -251,16 +254,43 @@ tdm <- tdm|>
 
 tdm <- tdm|>
   rename(Polaridade = V2)
-  
 
+tdm <- tdm|>
+  select(-V1, l, -achar, -acreditar, -acontecer, -acompanhar, -antiga, -bbma, -chegar)
+
+
+tdm$Polaridade = as.factor(tdm$Polaridade)
+# fazendo balanceamento
+tdm1 <- SMOTEWB(
+  x = tdm[, -292],  # variáveis independentes
+  y = tdm$Polaridade,      # variável dependente
+  K = 5,                      # número de vizinhos
+  over = 200,                 # taxa de over-sampling
+  under = 100                 # taxa de under-sampling
+)
+
+tdm2 <- tdm1[[1]]
+tdm <- cbind(tdm2, tdm1[[2]])
+
+tdm <- as.data.frame(tdm)
+
+tdm <- tdm|>
+  rename(Polaridade = V292)
+
+# resetar index
+rownames(tdm) <- NULL
+
+tdm$Polaridade = as.factor(tdm$Polaridade)
+
+# mudar levels de 1 e 2 para 0 e 1
+levels(tdm$Polaridade) <- c(0,1)
 
 # Separando em treino e teste
 
-set.seed(123)
+set.seed(29062003)
 notreino <- createDataPartition(tdm$Polaridade, p = 0.7, list = FALSE)
 treino <- tdm[notreino,]
 teste <- tdm[-notreino,]
-
 
 
 table(treino$Polaridade)
@@ -296,9 +326,10 @@ otimizador <- function(predicao, resposta) {
 param_grid <- expand.grid(
   eta = c(0.3),
   max_depth = c(6),
-  nrounds = c(10006),
+  nrounds = c(1000),
   early_stopping_rounds = c(10)
 )
+
 
 results <- list()
 
@@ -329,13 +360,13 @@ for (i in 1:nrow(param_grid)) {
     
     # Separar dados de treino e validação
     treino_fold <- treino[-fold,]
-    dtrain <- xgb.DMatrix(data = as.matrix(treino_fold[,-301]), label = as.matrix(as.factor(treino_fold$Polaridade)))
+    dtrain <- xgb.DMatrix(data = as.matrix(treino_fold[,-ncol(treino)]), label = as.matrix(as.factor(treino_fold$Polaridade)))
     
     validacao_fold <- treino[fold,]
-    dvalid <- xgb.DMatrix(data = as.matrix(validacao_fold[,-301]), label = as.matrix(as.factor(validacao_fold$Polaridade)))
+    dvalid <- xgb.DMatrix(data = as.matrix(validacao_fold[,-ncol(treino)]), label = as.matrix(as.factor(validacao_fold$Polaridade)))
     
     # Treinar o modelo com o fold de treino
-    set.seed(5415)
+    set.seed(29062003)
     xgbm_model <- xgboost(data = dtrain,
                           gamma=0, eta=params$eta, max_depth=params$max_depth,
                           nrounds = params$nrounds, 
@@ -357,6 +388,7 @@ for (i in 1:nrow(param_grid)) {
     
     # Matriz de confusão
     #cm <- confusionMatrix(as.factor(classificacao), as.factor(validacao_fold$Polaridade))
+    
     cm <- confusionMatrix(as.factor(classificacao),as.factor(validacao_fold$Polaridade))
     
     # Armazenar métricas do fold
@@ -385,5 +417,24 @@ for (i in 1:nrow(param_grid)) {
 }
 
 
-cm
+# Pegue os modelos com as melhores métricas gerais
+
+melhores_modelos <- results[sapply(results, function(x) all(x$accuracy > 0.80 & x$specificity > 0.65 & x$sensitivity > 0.65 & x$negative_predictive_value > 0.27))]
+
+# Escolhendo melhor modelo 
+
+melhor_modelo <- melhores_modelos[[1]]
+
+# Fazendo predições na base de teste
+
+dvalid1 <- xgb.DMatrix(data = as.matrix(teste[,-length(teste)]), label = as.matrix(as.factor(teste$Polaridade)))
+predicao_teste <- predict(melhor_modelo$model, newdata = dvalid1)
+
+# utilizando o ponto de corte ótimo
+
+classificacao_teste <- ifelse(predicao_teste >= melhor_modelo$ponto_otimo, 1, 0)
+
+# Matriz de confusão
+
+cm_teste <- confusionMatrix(as.factor(classificacao_teste),as.factor(teste$Polaridade))
 
