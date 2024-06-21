@@ -144,25 +144,6 @@ for (i in 1:nrow(param_grid)) {
 
 
 
-# Pegue os modelos com as melhores métricas gerais
 
-melhores_modelos <- results[sapply(results, function(x) all(x$accuracy > 0.80 & x$specificity > 0.65 & x$sensitivity > 0.65 & x$negative_predictive_value > 0.27))]
-
-# Escolhendo melhor modelo 
-
-melhor_modelo <- melhores_modelos[[1]]
-
-# Fazendo predições na base de teste
-
-dvalid1 <- xgb.DMatrix(data = as.matrix(teste1[,-length(teste1)]), label = as.matrix(as.factor(teste1$type_binario)))
-predicao_teste <- predict(melhor_modelo$model, newdata = dvalid1)
-
-# utilizando o ponto de corte ótimo
-
-classificacao_teste <- ifelse(predicao_teste >= melhor_modelo$ponto_otimo, 1, 0)
-
-# Matriz de confusão
-
-cm_teste <- confusionMatrix(as.factor(classificacao_teste),as.factor(teste1$type_binario))
 
 
