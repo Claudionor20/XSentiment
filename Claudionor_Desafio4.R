@@ -7,12 +7,11 @@ library(caret)
 library(maditr)
 library(xgboost)
 library(data.table)
-library(MVar.pt)
 
 
 load("dados_rotulados.rda")
 
-set.seed(1000)
+set.seed(2030)
 notreino <- caret::createDataPartition(dados$Polaridade, p = 0.6, list = FALSE)
 treino <- dados[notreino,]
 teste <- dados[-notreino,]
@@ -123,26 +122,31 @@ preprocessamento <- function(dados) {
   tdm <- tdm|>
     select(-RecordID)
   
+  # Botando polaridade na ultima coluna
+  tdm <- tdm %>%
+    select(-Polaridade) %>%
+    bind_cols(tdm %>% select(Polaridade))
+  
   # Balanceamento dos dados
-  tdm <- as.data.frame(tdm)
-  tdm_bal <- SMOTEWB(
-    x = tdm[, -1], 
-    y = tdm$Polaridade, 
-    K = 5
-  )
+  #tdm <- as.data.frame(tdm)
+  #tdm_bal <- SMOTEWB(
+  #  x = tdm[, -1], 
+  #  y = tdm$Polaridade, 
+  #  K = 5
+  #)
   
   # Transformando em data frame final
-  tdm_final <- cbind(tdm_bal[[1]], Polaridade = tdm_bal[[2]])
-  rownames(tdm_final) <- NULL
-  tdm_final <- as.data.frame(tdm_final)
+  #tdm_final <- cbind(tdm_bal[[1]], Polaridade = tdm_bal[[2]])
+  #rownames(tdm_final) <- NULL
+  #tdm_final <- as.data.frame(tdm_final)
   
-  tdm_final$Polaridade <- as.factor(tdm_final$Polaridade)
+  #tdm_final$Polaridade <- as.factor(tdm_final$Polaridade)
   # mudar levels de 1 e 2 para 0 e 1
-  levels(tdm_final$Polaridade) <- c(0,1)
+  #levels(tdm_final$Polaridade) <- c(0,1)
   
   # Separar a matriz de termos e os rótulos de treinamento
-  terms_train <- tdm_final[, -ncol(tdm_final)]
-  labels_train <- tdm_final[, ncol(tdm_final)]
+  terms_train <- tdm[, -ncol(tdm)]
+  labels_train <- tdm[, ncol(tdm)]
   
   # Função para calcular o IDF a partir dos dados de treinamento
   calculate_idf <- function(terms) {
@@ -164,7 +168,7 @@ preprocessamento <- function(dados) {
   # Calcular o TF-IDF para os dados de treinamento
   tfidf_matrix_train <- calculate_tfidf(terms_train, idf_train)
   
-  tfidf_matrix_train <- cbind(tfidf_matrix_train, Polaridade = tdm_final$Polaridade)
+  tfidf_matrix_train <- cbind(tfidf_matrix_train, Polaridade = tdm$Polaridade)
   
   return(tfidf_matrix_train)
 }
@@ -350,7 +354,7 @@ levels(treino$Polaridade) <- c(0,1)
 # Definir a grade de hiperparâmetros
 param_grid <- expand.grid(
   eta = c(0.3,0.1,0.3,0.5),
-  max_depth = c(3, 6, 9),
+  max_depth = c(3, 6, 12),
   nrounds = c(1000),
   early_stopping_rounds = c(10)
 )
@@ -391,7 +395,8 @@ for (i in 1:nrow(param_grid)) {
     dvalid <- xgb.DMatrix(data = as.matrix(validacao_fold[,-ncol(treino)]), label = as.matrix(as.factor(validacao_fold$Polaridade)))
     
     # Treinar o modelo com o fold de treino
-    set.seed(1000)
+    set.seed(2030)
+    train_labels <- getinfo(dtrain, "label")
     xgbm_model <- xgboost(data = dtrain,
                           gamma=0, eta=params$eta, max_depth=params$max_depth,
                           nrounds = params$nrounds, 
@@ -399,7 +404,7 @@ for (i in 1:nrow(param_grid)) {
                           objective = "binary:hinge",
                           verbose = 0,
                           lambda = 1,
-                          scale_pos_weight = 1)
+                          scale_pos_weight = (sum(train_labels == 0)) / (sum(train_labels == 1)))
     
     # Predição na validação
     predicao_validacao <- predict(xgbm_model, newdata = dvalid)
@@ -436,7 +441,7 @@ for (i in 1:nrow(param_grid)) {
 melhores_modelos <- results[sapply(results, function(x) all(x$accuracy > 0.80 & x$specificity > 0.80 & x$sensitivity > 0.78))]
 
 # Selecionar o melhor modelo
-best_model <- results[[4]]$model
+best_model <- results[[12]]$model
 
 levels(teste$Polaridade)
 levels(treino$Polaridade)
