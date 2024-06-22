@@ -6,12 +6,14 @@ library(SMOTEWB)
 library(caret)
 library(maditr)
 library(xgboost)
+library(data.table)
+library(MVar.pt)
 
 
 load("dados_rotulados.rda")
 
-set.seed(2024)
-notreino <- caret::createDataPartition(dados$Polaridade, p = 0.7, list = FALSE)
+set.seed(1000)
+notreino <- caret::createDataPartition(dados$Polaridade, p = 0.6, list = FALSE)
 treino <- dados[notreino,]
 teste <- dados[-notreino,]
 
@@ -126,9 +128,7 @@ preprocessamento <- function(dados) {
   tdm_bal <- SMOTEWB(
     x = tdm[, -1], 
     y = tdm$Polaridade, 
-    K = 5,
-    over = 200,                 # taxa de over-sampling
-    under = 100 
+    K = 5
   )
   
   # Transformando em data frame final
@@ -140,7 +140,33 @@ preprocessamento <- function(dados) {
   # mudar levels de 1 e 2 para 0 e 1
   levels(tdm_final$Polaridade) <- c(0,1)
   
-  return(tdm_final)
+  # Separar a matriz de termos e os rótulos de treinamento
+  terms_train <- tdm_final[, -ncol(tdm_final)]
+  labels_train <- tdm_final[, ncol(tdm_final)]
+  
+  # Função para calcular o IDF a partir dos dados de treinamento
+  calculate_idf <- function(terms) {
+    N <- nrow(terms)
+    doc_freq <- colSums(terms > 0)
+    idf <- log(N / (1 + doc_freq))
+    return(idf)
+  }
+  
+  # Função para calcular o TF-IDF
+  calculate_tfidf <- function(terms, idf) {
+    tf <- as.matrix(terms)
+    tfidf <- tf * idf
+    return(tfidf)
+  }
+  # Calcular o IDF a partir dos dados de treinamento
+  idf_train <- calculate_idf(terms_train)
+  
+  # Calcular o TF-IDF para os dados de treinamento
+  tfidf_matrix_train <- calculate_tfidf(terms_train, idf_train)
+  
+  tfidf_matrix_train <- cbind(tfidf_matrix_train, Polaridade = tdm_final$Polaridade)
+  
+  return(tfidf_matrix_train)
 }
 
 preprocessamento_teste <- function(dados) {
@@ -248,66 +274,77 @@ preprocessamento_teste <- function(dados) {
   # Removendo coluna RecordID
   tdm <- tdm|>
     select(-RecordID)
+  
+  # Botando polaridade na ultima coluna
+  tdm <- tdm %>%
+    select(-Polaridade) %>%
+    bind_cols(tdm %>% select(Polaridade))
+  
+  # Separar a matriz de termos e os rótulos de treinamento
+  terms_train <- tdm[, -ncol(tdm)]
+  labels_train <- tdm[, ncol(tdm)]
+  
+  # Função para calcular o IDF a partir dos dados de treinamento
+  calculate_idf <- function(terms) {
+    N <- nrow(terms)
+    doc_freq <- colSums(terms > 0)
+    idf <- log(N / (1 + doc_freq))
+    return(idf)
+  }
+  
+  # Função para calcular o TF-IDF
+  calculate_tfidf <- function(terms, idf) {
+    tf <- as.matrix(terms)
+    tfidf <- tf * idf
+    return(tfidf)
+  }
+  # Calcular o IDF a partir dos dados de treinamento
+  idf_train <- calculate_idf(terms_train)
+  
+  # Calcular o TF-IDF para os dados de treinamento
+  tfidf_matrix_train <- calculate_tfidf(terms_train, idf_train)
+  
+  # voltando com a coluna de polaridade
+  tfidf_matrix_train <- cbind(tfidf_matrix_train, Polaridade = tdm$Polaridade)
+  
+  
+  # Converter a matriz TF-IDF para uma matriz esparsa do tipo dgCMatrix
+  #tfidf_sparse_matrix_train <- as(tfidf_matrix_train, "dgCMatrix")
 }
 
 
 # Aplicando a função de preprocessamento
 treino <- preprocessamento(treino)
+
 teste <- preprocessamento_teste(teste)
 
-# Obter nomes das colunas de treino e teste
-colunas_treino <- colnames(treino)
-colunas_teste <- colnames(teste)
+treino <- as.data.frame(treino)
+teste <- as.data.frame(teste)
 
-# Encontrar colunas que estão na base de teste mas não na base de treino
-colunas_extras_teste <- setdiff(colunas_teste, colunas_treino)
 
-# Remover essas colunas extras da base de teste
-teste <- teste[, !colnames(teste) %in% colunas_extras_teste]
+# Verificando colunas exclusivas no conjunto de treino
+colunas_exclusivas <- setdiff(colnames(treino), colnames(teste))
 
-# Encontrar colunas que estão na base de treino mas não na base de teste
-colunas_faltantes <- setdiff(colunas_treino, colunas_teste)
-
-# Adicionar colunas faltantes na base de teste e preencher com 0
-for (coluna in colunas_faltantes) {
-  teste[[coluna]] <- 0
+# Adicionando colunas ausentes no conjunto de teste e preenchendo com zeros
+for (col in colunas_exclusivas) {
+  if(!col %in% colnames(teste)){
+  teste[[col]] = 0
+  }
 }
 
-# Deixando as colunas na mesma ordem
-teste <- teste[colunas_treino]
+colunas_treino <- colnames(treino)
 
+teste1 <- teste[,colunas_treino]
 
+teste <- teste1
 
+teste$Polaridade <- ifelse(teste$Polaridade == "1",0,1)
+treino$Polaridade <- ifelse(treino$Polaridade == "1",0,1)
 
+levels(teste$Polaridade) <- c(0,1)
+levels(treino$Polaridade) <- c(0,1)
 
 ########## Treinando o modelo ##############
-
-otimizador <- function(predicao, resposta) {
-  require(ROCR)
-  
-  # Criar o objeto de previsão
-  pred <- prediction(predicao, resposta)
-  
-  # Calcular a performance
-  perf <- performance(pred, "tpr", "fpr")
-  
-  # Calcular a diferença entre TPR e FPR
-  tpr <- unlist(perf@y.values)
-  fpr <- unlist(perf@x.values)
-  funcao <- tpr - fpr
-  
-  # Encontrar o ponto de corte ótimo
-  optimal_idx <- which.max(funcao)
-  ponto_otimo <- perf@alpha.values[[1]][optimal_idx]
-  
-  # Plotar a curva ROC
-  plot(perf, colorize = TRUE, lwd = 2, main = "Curva ROC")
-  abline(a = 0, b = 1, lty = 2, col = "gray")
-  points(fpr[optimal_idx], tpr[optimal_idx], pch = 19, col = "red")
-  text(fpr[optimal_idx], tpr[optimal_idx], labels = round(ponto_otimo, 2), pos = 4, col = "red")
-  
-  return(ponto_otimo)
-}
 
 
 # Definir a grade de hiperparâmetros
@@ -354,30 +391,22 @@ for (i in 1:nrow(param_grid)) {
     dvalid <- xgb.DMatrix(data = as.matrix(validacao_fold[,-ncol(treino)]), label = as.matrix(as.factor(validacao_fold$Polaridade)))
     
     # Treinar o modelo com o fold de treino
-    set.seed(29062003)
+    set.seed(1000)
     xgbm_model <- xgboost(data = dtrain,
                           gamma=0, eta=params$eta, max_depth=params$max_depth,
                           nrounds = params$nrounds, 
                           early_stopping_rounds=params$early_stopping_rounds,
                           objective = "binary:hinge",
                           verbose = 0,
-                          subsample = 0.8,
                           lambda = 1,
-                          colsample_bytree = 0.8)
+                          scale_pos_weight = 1)
     
     # Predição na validação
     predicao_validacao <- predict(xgbm_model, newdata = dvalid)
     
-    # Encontrar o ponto de corte ótimo
-    ponto_otimo <- otimizador(predicao_validacao, validacao_fold$Polaridade)
+    # Fazendo matriz de confusão
+    cm <- confusionMatrix(as.factor(predicao_validacao), as.factor(validacao_fold$Polaridade))
     
-    # Classificar as predições
-    classificacao <- ifelse(predicao_validacao >= ponto_otimo, 1, 0)
-    
-    # Matriz de confusão
-    #cm <- confusionMatrix(as.factor(classificacao), as.factor(validacao_fold$Polaridade))
-    
-    cm <- confusionMatrix(as.factor(classificacao),as.factor(validacao_fold$Polaridade))
     
     # Armazenar métricas do fold
     metrics_list$accuracy[fold_index] <- cm$overall['Accuracy']
@@ -396,7 +425,6 @@ for (i in 1:nrow(param_grid)) {
     specificity = media_metrics['specificity'],
     sensitivity = media_metrics['sensitivity'],
     negative_predictive_value = media_metrics['npv'],
-    ponto_otimo = ponto_otimo,
     model = xgbm_model,
     confusion_matrix = cm
   )
@@ -405,24 +433,22 @@ for (i in 1:nrow(param_grid)) {
 }
 
 
-
-melhores_modelos <- results[sapply(results, function(x) all(x$accuracy > 0.75 & x$specificity > 0.75 & x$sensitivity > 0.70))]
+melhores_modelos <- results[sapply(results, function(x) all(x$accuracy > 0.80 & x$specificity > 0.80 & x$sensitivity > 0.78))]
 
 # Selecionar o melhor modelo
-best_model <- melhores_modelos[[1]]$model
+best_model <- results[[4]]$model
 
+levels(teste$Polaridade)
+levels(treino$Polaridade)
 
 # Predição na base de teste
 dtest <- xgb.DMatrix(data = as.matrix(teste[,-ncol(teste)]), label = as.matrix(as.factor(teste$Polaridade)))
 predicao_teste <- predict(best_model, newdata = dtest)
 
-# Encontrar o ponto de corte ótimo
-ponto_otimo <- otimizador(predicao_teste, teste$Polaridade)
 
-# Classificar as predições
-classificacao_teste <- ifelse(predicao_teste >= ponto_otimo, 1, 0)
 
 # Matriz de confusão
-cm_teste <- confusionMatrix(as.factor(classificacao_teste), as.factor(teste$Polaridade))
+cm_teste <- confusionMatrix(as.factor(predicao_teste), as.factor(teste$Polaridade))
 
 cm_teste
+

@@ -2,9 +2,12 @@ library(dplyr)
 library(tidytext)
 library(stringi)
 library(SMOTEWB)
+library(text2vec)
+library(tm)
+library(MVar.pt)
 load("dados_rotulados.rda")
 # Separando os dados em treino e teste
-set.seed(2020)
+set.seed(2021)
 notreino <- createDataPartition(dados$Polaridade, p = 0.7, list = FALSE)
 treino <- dados[notreino,]
 teste <- dados[-notreino,]
@@ -123,3 +126,32 @@ tdm_bal <- SMOTEWB(
 # Transformando em data frame final
 tdm_final <- cbind(tdm_bal[[1]], Polaridade = tdm_bal[[2]])
 rownames(tdm_final) <- NULL
+tdm_final <- as.data.frame(tdm_final)
+
+# Separar a matriz de termos e os rótulos de treinamento
+terms_train <- tdm_final[, -ncol(tdm)]
+labels_train <- tdm_final[, ncol(tdm)]
+
+# Função para calcular o IDF a partir dos dados de treinamento
+calculate_idf <- function(terms) {
+  N <- nrow(terms)
+  doc_freq <- colSums(terms > 0)
+  idf <- log(N / (1 + doc_freq))
+  return(idf)
+}
+
+# Função para calcular o TF-IDF
+calculate_tfidf <- function(terms, idf) {
+  tf <- as.matrix(terms)
+  tfidf <- tf * idf
+  return(tfidf)
+}
+# Calcular o IDF a partir dos dados de treinamento
+idf_train <- calculate_idf(terms_train)
+
+# Calcular o TF-IDF para os dados de treinamento
+tfidf_matrix_train <- calculate_tfidf(terms_train, idf_train)
+
+# Converter a matriz TF-IDF para uma matriz esparsa do tipo dgCMatrix
+tfidf_sparse_matrix_train <- as(tfidf_matrix_train, "dgCMatrix")
+
