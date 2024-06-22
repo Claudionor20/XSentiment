@@ -11,7 +11,7 @@ library(data.table)
 
 load("dados_rotulados.rda")
 
-set.seed(2030)
+set.seed(2611)
 notreino <- caret::createDataPartition(dados$Polaridade, p = 0.6, list = FALSE)
 treino <- dados[notreino,]
 teste <- dados[-notreino,]
@@ -84,7 +84,7 @@ preprocessamento <- function(dados) {
   dados <- dados |> filter(!word %in% variacoes_ignoradas)
   
   # Lematização
-  lema <- read.delim("https://raw.githubusercontent.com/Claudionor20/XSentiment/main/lema_claudio.txt", header = FALSE, stringsAsFactors = FALSE, encoding = "UTF-8")
+  lema <- read.delim("https://raw.githubusercontent.com/Claudionor20/XSentiment/main/lemmatization-pt_vClaudionor.txt", header = FALSE, stringsAsFactors = FALSE, encoding = "UTF-8")
   names(lema) <- c("stem", "word")
   dados_lem <- left_join(dados, lema, by = 'word') |>
     mutate(word = ifelse(is.na(stem), word, stem)) |>
@@ -128,25 +128,25 @@ preprocessamento <- function(dados) {
     bind_cols(tdm %>% select(Polaridade))
   
   # Balanceamento dos dados
-  #tdm <- as.data.frame(tdm)
-  #tdm_bal <- SMOTEWB(
-  #  x = tdm[, -1], 
-  #  y = tdm$Polaridade, 
-  #  K = 5
-  #)
+  tdm <- as.data.frame(tdm)
+  tdm_bal <- SMOTEWB(
+    x = tdm[, -ncol(tdm)], 
+    y = tdm$Polaridade, 
+    K = 5
+  )
   
   # Transformando em data frame final
-  #tdm_final <- cbind(tdm_bal[[1]], Polaridade = tdm_bal[[2]])
-  #rownames(tdm_final) <- NULL
-  #tdm_final <- as.data.frame(tdm_final)
+  tdm_final <- cbind(tdm_bal[[1]], Polaridade = tdm_bal[[2]])
+  rownames(tdm_final) <- NULL
+  tdm_final <- as.data.frame(tdm_final)
   
-  #tdm_final$Polaridade <- as.factor(tdm_final$Polaridade)
+  tdm_final$Polaridade <- as.factor(tdm_final$Polaridade)
   # mudar levels de 1 e 2 para 0 e 1
-  #levels(tdm_final$Polaridade) <- c(0,1)
+  levels(tdm_final$Polaridade) <- c(0,1)
   
   # Separar a matriz de termos e os rótulos de treinamento
-  terms_train <- tdm[, -ncol(tdm)]
-  labels_train <- tdm[, ncol(tdm)]
+  terms_train <- tdm_final[, -ncol(tdm_final)]
+  labels_train <- tdm_final[, ncol(tdm_final)]
   
   # Função para calcular o IDF a partir dos dados de treinamento
   calculate_idf <- function(terms) {
@@ -168,7 +168,7 @@ preprocessamento <- function(dados) {
   # Calcular o TF-IDF para os dados de treinamento
   tfidf_matrix_train <- calculate_tfidf(terms_train, idf_train)
   
-  tfidf_matrix_train <- cbind(tfidf_matrix_train, Polaridade = tdm$Polaridade)
+  tfidf_matrix_train <- cbind(tfidf_matrix_train, Polaridade = tdm_final$Polaridade)
   
   return(tfidf_matrix_train)
 }
@@ -241,7 +241,7 @@ preprocessamento_teste <- function(dados) {
   dados <- dados |> filter(!word %in% variacoes_ignoradas)
   
   # Lematização
-  lema <- read.delim("https://raw.githubusercontent.com/Claudionor20/XSentiment/main/lema_claudio.txt", header = FALSE, stringsAsFactors = FALSE, encoding = "UTF-8")
+  lema <- read.delim("https://raw.githubusercontent.com/Claudionor20/XSentiment/main/lemmatization-pt_vClaudionor.txt", header = FALSE, stringsAsFactors = FALSE, encoding = "UTF-8")
   names(lema) <- c("stem", "word")
   dados_lem <- left_join(dados, lema, by = 'word') |>
     mutate(word = ifelse(is.na(stem), word, stem)) |>
@@ -312,8 +312,6 @@ preprocessamento_teste <- function(dados) {
   tfidf_matrix_train <- cbind(tfidf_matrix_train, Polaridade = tdm$Polaridade)
   
   
-  # Converter a matriz TF-IDF para uma matriz esparsa do tipo dgCMatrix
-  #tfidf_sparse_matrix_train <- as(tfidf_matrix_train, "dgCMatrix")
 }
 
 
@@ -354,9 +352,9 @@ levels(treino$Polaridade) <- c(0,1)
 # Definir a grade de hiperparâmetros
 param_grid <- expand.grid(
   eta = c(0.3,0.1,0.3,0.5),
-  max_depth = c(3, 6, 12),
-  nrounds = c(1000),
-  early_stopping_rounds = c(10)
+  max_depth = c(3, 6, 9,12),
+  nrounds = c(1000,2000),
+  early_stopping_rounds = c(10,12)
 )
 
 
@@ -395,7 +393,7 @@ for (i in 1:nrow(param_grid)) {
     dvalid <- xgb.DMatrix(data = as.matrix(validacao_fold[,-ncol(treino)]), label = as.matrix(as.factor(validacao_fold$Polaridade)))
     
     # Treinar o modelo com o fold de treino
-    set.seed(2030)
+    set.seed(2611)
     train_labels <- getinfo(dtrain, "label")
     xgbm_model <- xgboost(data = dtrain,
                           gamma=0, eta=params$eta, max_depth=params$max_depth,
@@ -403,8 +401,8 @@ for (i in 1:nrow(param_grid)) {
                           early_stopping_rounds=params$early_stopping_rounds,
                           objective = "binary:hinge",
                           verbose = 0,
-                          lambda = 1,
-                          scale_pos_weight = (sum(train_labels == 0)) / (sum(train_labels == 1)))
+                          lambda = 1
+                          )
     
     # Predição na validação
     predicao_validacao <- predict(xgbm_model, newdata = dvalid)
@@ -438,10 +436,10 @@ for (i in 1:nrow(param_grid)) {
 }
 
 
-melhores_modelos <- results[sapply(results, function(x) all(x$accuracy > 0.80 & x$specificity > 0.80 & x$sensitivity > 0.78))]
+melhores_modelos <- results[sapply(results, function(x) all(x$accuracy > 0.80 & x$specificity > 0.80 & x$sensitivity > 0.815))]
 
 # Selecionar o melhor modelo
-best_model <- results[[12]]$model
+best_model <- melhores_modelos[[2]]$model
 
 levels(teste$Polaridade)
 levels(treino$Polaridade)
