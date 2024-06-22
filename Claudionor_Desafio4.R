@@ -11,8 +11,8 @@ library(data.table)
 
 load("dados_rotulados.rda")
 
-set.seed(2611)
-notreino <- caret::createDataPartition(dados$Polaridade, p = 0.6, list = FALSE)
+set.seed(967)
+notreino <- caret::createDataPartition(dados$Polaridade, p = 0.7, list = FALSE)
 treino <- dados[notreino,]
 teste <- dados[-notreino,]
 
@@ -129,10 +129,11 @@ preprocessamento <- function(dados) {
   
   # Balanceamento dos dados
   tdm <- as.data.frame(tdm)
-  tdm_bal <- SMOTEWB(
+  tdm_bal <- ADASYN(
     x = tdm[, -ncol(tdm)], 
-    y = tdm$Polaridade, 
-    K = 5
+    y = tdm$Polaridade,
+    k = 6
+   
   )
   
   # Transformando em data frame final
@@ -169,6 +170,12 @@ preprocessamento <- function(dados) {
   tfidf_matrix_train <- calculate_tfidf(terms_train, idf_train)
   
   tfidf_matrix_train <- cbind(tfidf_matrix_train, Polaridade = tdm_final$Polaridade)
+  
+  tfidf_matrix_train <- as.data.frame(tfidf_matrix_train)
+  
+  tfidf_matrix_train$Polaridade <- ifelse(tfidf_matrix_train$Polaridade == "1",0,1)
+
+  
   
   return(tfidf_matrix_train)
 }
@@ -254,10 +261,13 @@ preprocessamento_teste <- function(dados) {
   dados_lem = left_join(dados_lem,freq,'word')
   dados_lem = ungroup(dados_lem)
   
-  # filtrando palavras com a frequencia minima
+  # filtrando palavras com a frequencia minimas 15 somente se existir
+  
   freq_min <- 15
-  dados_min<-dplyr::filter(dados_lem,
-                           frequencia>=freq_min)
+  dados_min <- dados_lem |>
+  filter(!(frequencia <= freq_min & n() > 0))
+  #dados_min<-dplyr::filter(dados_lem,
+                           #frequencia>=freq_min)
   # Contagem de frequência das palavras
   dados_freq <- dados_min |>
     count(RecordID, word, Polaridade) |> 
@@ -285,8 +295,8 @@ preprocessamento_teste <- function(dados) {
     bind_cols(tdm %>% select(Polaridade))
   
   # Separar a matriz de termos e os rótulos de treinamento
-  terms_train <- tdm[, -ncol(tdm)]
-  labels_train <- tdm[, ncol(tdm)]
+  terms_test <- tdm[, -ncol(tdm)]
+  labels_test <- tdm[, ncol(tdm)]
   
   # Função para calcular o IDF a partir dos dados de treinamento
   calculate_idf <- function(terms) {
@@ -303,26 +313,26 @@ preprocessamento_teste <- function(dados) {
     return(tfidf)
   }
   # Calcular o IDF a partir dos dados de treinamento
-  idf_train <- calculate_idf(terms_train)
+  idf_test <- calculate_idf(terms_test)
   
   # Calcular o TF-IDF para os dados de treinamento
-  tfidf_matrix_train <- calculate_tfidf(terms_train, idf_train)
+  tfidf_matrix_test <- calculate_tfidf(terms_test, idf_test)
   
   # voltando com a coluna de polaridade
-  tfidf_matrix_train <- cbind(tfidf_matrix_train, Polaridade = tdm$Polaridade)
+  tfidf_matrix_test <- cbind(tfidf_matrix_test, Polaridade = tdm$Polaridade)
   
   
+  tfidf_matrix_test <- as.data.frame(tfidf_matrix_test)
+
 }
 
 
 # Aplicando a função de preprocessamento
 treino <- preprocessamento(treino)
-
 teste <- preprocessamento_teste(teste)
 
 treino <- as.data.frame(treino)
 teste <- as.data.frame(teste)
-
 
 # Verificando colunas exclusivas no conjunto de treino
 colunas_exclusivas <- setdiff(colnames(treino), colnames(teste))
@@ -336,12 +346,9 @@ for (col in colunas_exclusivas) {
 
 colunas_treino <- colnames(treino)
 
-teste1 <- teste[,colunas_treino]
-
-teste <- teste1
+teste <- teste[,colunas_treino]
 
 teste$Polaridade <- ifelse(teste$Polaridade == "1",0,1)
-treino$Polaridade <- ifelse(treino$Polaridade == "1",0,1)
 
 levels(teste$Polaridade) <- c(0,1)
 levels(treino$Polaridade) <- c(0,1)
@@ -353,8 +360,8 @@ levels(treino$Polaridade) <- c(0,1)
 param_grid <- expand.grid(
   eta = c(0.3,0.1,0.3,0.5),
   max_depth = c(3, 6, 9,12),
-  nrounds = c(1000,2000),
-  early_stopping_rounds = c(10,12)
+  nrounds = c(1000),
+  early_stopping_rounds = c(10)
 )
 
 
@@ -393,7 +400,7 @@ for (i in 1:nrow(param_grid)) {
     dvalid <- xgb.DMatrix(data = as.matrix(validacao_fold[,-ncol(treino)]), label = as.matrix(as.factor(validacao_fold$Polaridade)))
     
     # Treinar o modelo com o fold de treino
-    set.seed(2611)
+    set.seed(967)
     train_labels <- getinfo(dtrain, "label")
     xgbm_model <- xgboost(data = dtrain,
                           gamma=0, eta=params$eta, max_depth=params$max_depth,
@@ -436,10 +443,11 @@ for (i in 1:nrow(param_grid)) {
 }
 
 
-melhores_modelos <- results[sapply(results, function(x) all(x$accuracy > 0.80 & x$specificity > 0.80 & x$sensitivity > 0.815))]
+melhores_modelos <- results[sapply(results, function(x) all(x$accuracy > 0.80 & x$specificity > 0.80 & x$sensitivity > 0.80))]
 
 # Selecionar o melhor modelo
-best_model <- melhores_modelos[[2]]$model
+best_model <- results[[5]]$model
+parametros <- results[[5]]$params
 
 levels(teste$Polaridade)
 levels(treino$Polaridade)
@@ -454,4 +462,5 @@ predicao_teste <- predict(best_model, newdata = dtest)
 cm_teste <- confusionMatrix(as.factor(predicao_teste), as.factor(teste$Polaridade))
 
 cm_teste
+
 

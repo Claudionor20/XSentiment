@@ -5,6 +5,10 @@ library(SMOTEWB)
 library(text2vec)
 library(tm)
 library(MVar.pt)
+library(caret)
+library(maditr)
+library(FactoMineR)
+library(factoextra)
 load("dados_rotulados.rda")
 # Separando os dados em treino e teste
 set.seed(2021)
@@ -152,6 +156,9 @@ idf_train <- calculate_idf(terms_train)
 # Calcular o TF-IDF para os dados de treinamento
 tfidf_matrix_train <- calculate_tfidf(terms_train, idf_train)
 
-# Converter a matriz TF-IDF para uma matriz esparsa do tipo dgCMatrix
-tfidf_sparse_matrix_train <- as(tfidf_matrix_train, "dgCMatrix")
+tfidf_matrix_train <- cbind(tfidf_matrix_train, Polaridade = tdm_final$Polaridade) # Adicionando a coluna de rótulos
+
+tfidf_matrix_train <- as.data.frame(tfidf_matrix_train)
+tfidf_matrix_train$Polaridade <- ifelse(tfidf_matrix_train$Polaridade == "1",0,1)
+
 
