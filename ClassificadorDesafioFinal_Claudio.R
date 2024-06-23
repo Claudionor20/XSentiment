@@ -10,7 +10,7 @@ Classificador <- function(data){
   
   lapply(pacotes, library, character.only = TRUE)
   
-  load("Claudionor_Desafio4.rda")
+  load("Claudionor_DesafioFinal.rda")
   
   data1 <- preprocessamento_teste(data)
   
@@ -49,4 +49,4 @@ load("dados_rotulados.rda")
 
 
 
-Classificador(dados[1000:3000,])
+Classificador(dados[1:400,])

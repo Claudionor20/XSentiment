@@ -11,7 +11,7 @@ library(data.table)
 
 load("dados_rotulados.rda")
 
-set.seed(121054011)
+set.seed(700)
 notreino <- caret::createDataPartition(dados$Polaridade, p = 0.7, list = FALSE)
 treino <- dados[notreino,]
 teste <- dados[-notreino,]
@@ -98,7 +98,7 @@ preprocessamento <- function(dados) {
   dados_lem = left_join(dados_lem,freq,'word')
   dados_lem = ungroup(dados_lem)
   
-  # filtrando palavras com a frequencia minima
+  # Filtrando palavras com a frequencia minima
   freq_min <- 15
   dados_min <- dados_lem |>
     filter(!(frequencia <= freq_min & n() > 0))
@@ -114,9 +114,17 @@ preprocessamento <- function(dados) {
   tdm <- dados_freq |>
     dcast(RecordID + Polaridade ~ word, value.var = "FreqPercentual", fill = 0)
   
+  # Fazendo um findcorrelation
+  
+  #correlacao <- cor(tdm[,-ncol(treino)]) ###  FIZ A CORRELACAO AQUI E EXCLUI JÁ AS COLUNAS PRÉ PROCESSAMENTO ####
+  #highly_correlated <- findCorrelation(correlacao, cutoff = 0.75)
+  #tdm <- tdm[,-highly_correlated]
+  
+  #nomes_das_colunas <- names(treino)[highly_correlated]
+  
   # Removendo colunas desnecessárias ou com alta correlação
-  colunas_desnecessarias <- c("V1", "l", "achar", "acreditar", "acontecer", "acompanhar", "antiga", "bbma", "chegar","caro","causar","esquerdo",
-                              "lindo","melhorar","menino","rede","brunamarquezine","esquerda","redar")
+  colunas_desnecessarias <- c("V1", "l", "achar", "acreditar", "acontecer", "acompanhar", "antiga", "chegar","caro","esquerdo",
+                              "melhorar","menino","rede","esquerda","redar")
   tdm <- tdm |> select(-any_of(colunas_desnecessarias))
   tdm$Polaridade <- as.factor(ifelse(tdm$Polaridade == "1", 0, 1))
   
@@ -134,7 +142,7 @@ preprocessamento <- function(dados) {
   tdm_bal <- ADASYN(
     x = tdm[, -ncol(tdm)], 
     y = tdm$Polaridade,
-    k = 6
+    k = 5
    
   )
   
@@ -342,13 +350,7 @@ preprocessamento_teste <- function(dados) {
 treino <- preprocessamento(treino)
 teste <- preprocessamento_teste(teste)
 
-# Fazendo um findcorrelation
 
-#correlacao <- cor(treino[,-ncol(treino)]) ###  FIZ A CORRELACAO AQUI E EXCLUI JÁ AS COLUNAS PRÉ PROCESSAMENTO ####
-#highly_correlated <- findCorrelation(correlacao, cutoff = 0.75)
-#treino <- treino[,-highly_correlated]
-
-#nomes_das_colunas <- names(treino)[highly_correlated]
 
 treino <- as.data.frame(treino)
 teste <- as.data.frame(teste)
@@ -419,7 +421,7 @@ for (i in 1:nrow(param_grid)) {
     dvalid <- xgb.DMatrix(data = as.matrix(validacao_fold[,-ncol(treino)]), label = as.matrix(as.factor(validacao_fold$Polaridade)))
     
     # Treinar o modelo com o fold de treino
-    set.seed(121054011)
+    set.seed(700)
     train_labels <- getinfo(dtrain, "label")
     xgbm_model <- xgboost(data = dtrain,
                           gamma=0, eta=params$eta, max_depth=params$max_depth,
@@ -461,12 +463,9 @@ for (i in 1:nrow(param_grid)) {
   
 }
 
-
-melhores_modelos <- results[sapply(results, function(x) all(x$accuracy > 0.81 & x$specificity > 0.80 & x$sensitivity > 0.81))]
-
 # Selecionar o melhor modelo
-best_model <- results[[5]]$model
-parametros <- results[[5]]$params
+best_model <- results[[12]]$model
+parametros <- results[[12]]$params
 
 levels(teste$Polaridade)
 levels(treino$Polaridade)
