@@ -11,7 +11,7 @@ library(data.table)
 
 load("dados_rotulados.rda")
 
-set.seed(974)
+set.seed(474)
 notreino <- caret::createDataPartition(dados$Polaridade, p = 0.7, list = FALSE)
 treino <- dados[notreino,]
 teste <- dados[-notreino,]
@@ -99,7 +99,7 @@ preprocessamento <- function(dados) {
   dados_lem = ungroup(dados_lem)
   
   # Filtrando palavras com a frequencia minima
-  freq_min <- 15
+  freq_min <- 10
   dados_min <- dados_lem |>
     filter(!(frequencia <= freq_min & n() > 0))
   # Contagem de frequência das palavras
@@ -370,8 +370,8 @@ levels(treino$Polaridade) <- c(0,1)
 param_grid <- expand.grid(
   eta = c(0.3,0.1,0.3,0.5),
   max_depth = c(3, 6, 9,12),
-  nrounds = c(1000),
-  early_stopping_rounds = c(10)
+  nrounds = c(300,500,1000),
+  early_stopping_rounds = c(5,10)
 )
 
 
@@ -410,7 +410,7 @@ for (i in 1:nrow(param_grid)) {
     dvalid <- xgb.DMatrix(data = as.matrix(validacao_fold[,-ncol(treino)]), label = as.matrix(as.factor(validacao_fold$Polaridade)))
     
     # Treinar o modelo com o fold de treino
-    set.seed(974)
+    set.seed(474)
     train_labels <- getinfo(dtrain, "label")
     xgbm_model <- xgboost(data = dtrain,
                           gamma=0, eta=params$eta, max_depth=params$max_depth,
@@ -452,15 +452,20 @@ for (i in 1:nrow(param_grid)) {
   
 }
 
+# Selecionando modelo com a maior negativa preditiva
+npv <- sapply(results, function(x) x$negative_predictive_value)
+best_model_index <- which.max(npv)
+
 
 # Selecionar o melhor modelo
-best_model <- results[[9]]$model
-parametros <- results[[9]]$params
+best_model <- results[[23]]$model #14 lindo
+parametros <- results[[23]]$params
 
 levels(teste$Polaridade)
 levels(treino$Polaridade)
 
 # Predição na base de teste
+
 dtest <- xgb.DMatrix(data = as.matrix(teste[,-ncol(teste)]), label = as.matrix(as.factor(teste$Polaridade)))
 predicao_teste <- predict(best_model, newdata = dtest)
 
