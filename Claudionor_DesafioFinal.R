@@ -11,7 +11,7 @@ library(data.table)
 
 load("dados_rotulados.rda")
 
-set.seed(700)
+set.seed(974)
 notreino <- caret::createDataPartition(dados$Polaridade, p = 0.7, list = FALSE)
 treino <- dados[notreino,]
 teste <- dados[-notreino,]
@@ -271,21 +271,10 @@ preprocessamento_teste <- function(dados) {
   dados_lem = left_join(dados_lem,freq,'word')
   dados_lem = ungroup(dados_lem)
   
-  # filtrando palavras com a frequencia minimas 15 somente se existir
-  
-  freq_min <- 15
-  if (any(dados_lem$frequencia < freq_min)) {
-    # Se existir, aplique o filtro
-    dados_min <- dados_lem
-    
-  } else {
-    # Caso contrário, mantenha os dados originais
-    dados_min <- dados_lem |>
-      filter(!(frequencia <= freq_min))
-  }
+
   
   # Contagem de frequência das palavras
-  dados_freq <- dados_min |>
+  dados_freq <- dados_lem |>
     count(RecordID, word, Polaridade) |> 
     group_by(RecordID) |> 
     mutate(TotalPalavras = sum(n), FreqPercentual = n / TotalPalavras) |>
@@ -298,7 +287,7 @@ preprocessamento_teste <- function(dados) {
   
   # Removendo colunas desnecessárias e com alta correlação
   colunas_desnecessarias <- c("V1", "l", "achar", "acreditar", "acontecer", "acompanhar", "antiga", "bbma", "chegar","caro","causar","esquerdo",
-                              "lindo","melhorar","menino","rede","brunamarquezine","esquerda","redar")
+                              "lindo","melhorar","menino","rede","esquerda","redar")
   tdm <- tdm |> select(-any_of(colunas_desnecessarias))
   tdm$Polaridade <- as.factor(ifelse(tdm$Polaridade == "1", 0, 1))
   
@@ -421,7 +410,7 @@ for (i in 1:nrow(param_grid)) {
     dvalid <- xgb.DMatrix(data = as.matrix(validacao_fold[,-ncol(treino)]), label = as.matrix(as.factor(validacao_fold$Polaridade)))
     
     # Treinar o modelo com o fold de treino
-    set.seed(700)
+    set.seed(974)
     train_labels <- getinfo(dtrain, "label")
     xgbm_model <- xgboost(data = dtrain,
                           gamma=0, eta=params$eta, max_depth=params$max_depth,
@@ -463,9 +452,10 @@ for (i in 1:nrow(param_grid)) {
   
 }
 
+
 # Selecionar o melhor modelo
-best_model <- results[[12]]$model
-parametros <- results[[12]]$params
+best_model <- results[[9]]$model
+parametros <- results[[9]]$params
 
 levels(teste$Polaridade)
 levels(treino$Polaridade)
